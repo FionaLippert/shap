@@ -96,6 +96,7 @@ class KernelExplainer(Explainer):
         self.data = convert_to_data(data, keep_index=self.keep_index)
         model_null = match_model_to_data(self.model, self.data)
 
+
         # enforce our current input type limitations
         if not isinstance(self.data, (DenseData, SparseData)):
             emsg = "Shap explainer only supports the DenseData and SparseData input currently."
@@ -137,6 +138,10 @@ class KernelExplainer(Explainer):
         else:
             self.D = self.fnull.shape[0]
 
+        # info about periodic outputs
+        self.wrap_vals = kwargs.get('wrap_vals', np.zeros(self.D))
+    
+    
     @staticmethod
     def _convert_symbolic_tensor(symbolic_tensor) -> np.ndarray:
         import tensorflow as tf
@@ -631,6 +636,11 @@ class KernelExplainer(Explainer):
 
     def solve(self, fraction_evaluated, dim):
         eyAdj = self.linkfv(self.ey[:, dim]) - self.link.f(self.fnull[dim])
+
+        # wrap difference for periodic outputs
+        eyAdj[eyAdj > self.wrap_vals[dim]] -= 2 * self.wrap_vals[dim]
+        eyAdj[eyAdj < -self.wrap_vals[dim]] += 2 * self.wrap_vals[dim]
+
         s = np.sum(self.maskMatrix, 1)
 
         # do feature selection if we have not well enumerated the space
